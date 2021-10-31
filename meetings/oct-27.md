@@ -10,12 +10,9 @@ Location: BHM 116
   - What was helpful?
 - Plan for next week: **variational quantum algorithm research**
 
-  
-### Notes
-- 
-
-
 ### Action Items
-- 
+- Go over the VQA notebook in the onboarding folder
+- Take a look at the resources listed at the start of the notebook
+- Feel free to push your miniproject code to the onboarding folder as well
 
 
