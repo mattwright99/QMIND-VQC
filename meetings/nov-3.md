@@ -8,13 +8,9 @@ Location: BHM 119
   - What are you still struggling with?
   - What did you find interesting?
 - Need another week?
-  
-### Notes
-- 
--
 
 ### Action Items
-- 
--
+- Continue wokring through VQA notebook
+- Look into other resources - start with the ones linked in the notebook
 
 
