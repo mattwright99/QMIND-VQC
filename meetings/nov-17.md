@@ -8,9 +8,6 @@ Location: BMH 116
   - What does it do?
   - What technique are planning to implement?
   
-### Notes
-- 
--
 
 ### Action Items
 - Build a function
