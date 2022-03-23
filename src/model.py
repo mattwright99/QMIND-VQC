@@ -13,6 +13,8 @@ import qiskit
 from qiskit.visualization import *
 from qiskit.circuit.random import random_circuit
 
+from circuits import randomLayer
+
 
 # @Julia and @Tristan
 class QuanvCircuit:
@@ -35,10 +37,30 @@ class QuanvCircuit:
         # bind data to circuit
         # execute
         # extract ouput expectations
+        expectation = StateFn(self.qc.remove_final_measurements(inplace=False))
         
-        return results
-
-
+        value_dict = dict(zip(self.params + self.inputs, params + input_data))
+        
+        in_pauli_basis = PauliExpectation().convert(expectation)        
+        result = self.sampler.convert(in_pauli_basis, params=value_dict).eval()
+        return result.to_matrix()[0]
+    
+    def grad(self, input_data, params):
+        
+        expectation = StateFn(self._circuit.remove_final_measurements(inplace=False))
+        
+        expectation = expectation.bind_parameters(dict(zip(self.inputs, input_data)))
+        
+        grad = self.shifter.convert(expectation)
+        gradient_in_pauli_basis = PauliExpectation().convert(grad)
+        value_dict = dict(zip(self.params, params))
+        
+        result = self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval()
+        
+        gradInputs = np.array([g.toarray() for g in result])
+    
+        return gradInputs[:,0]
+        
 
 class QuanvFunction(Function):
     """ Variational Quanvolution function definition """
