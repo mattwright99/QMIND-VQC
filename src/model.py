@@ -29,7 +29,6 @@ class QuanvCircuit:
             kernel_size=2,
             backend=None,
             shots=1024,
-            threshold=127,
             ansatz='') -> None:
         
         # Instantiate quantum circuit
