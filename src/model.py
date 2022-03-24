@@ -11,9 +11,14 @@ from torchsummary import summary
 
 import qiskit
 from qiskit.visualization import *
-from qiskit.circuit.random import random_circuit
+from qiskit.opflow import Gradient, NaturalGradient, QFI, Hessian
+from qiskit.opflow import Z, I, X, Y
+from qiskit.opflow import StateFn
+from qiskit.opflow import PauliExpectation, CircuitSampler
+from qiskit.utils import QuantumInstance
 
-from circuits import randomLayer
+
+from circuits import randomLayer, featureMap
 
 
 # @Julia and @Tristan
@@ -28,38 +33,63 @@ class QuanvCircuit:
             ansatz='') -> None:
         
         # Instantiate quantum circuit
-        self.qc = qiskit.QuantumCircuit()
+        self.n_qubits = kernel_size**2
+        self.qc = qiskit.QuantumCircuit(self.n_qubits)
+        
+        fMap = featureMap(self.n_qubits)
+        
+        self.qc.compose(fMap, inplace=True)
+        
+        ansatz = randomLayer(self.n_qubits
+            entanglement='full', 
+            gates=['rx','ry'], 
+            reps = 2)
+        
+        
         # create param vector 
         # create input param vector
         # apply appropriate gates
+        self.params = ansatz.parameters
+        self.n_params = ansatz.num_parameters
+        
+        self.input_data = fMap.parameters
+        self.n_inputs = self.n_qubits
+        
+        self.backend = backend
+        self.shots = shots
+        
+        self.q_instance = QuantumInstance(self.backend, shots = self.shots, seed_simulator = 2718, seed_transpiler = 2718)
+        self.sampler = CircuitSampler(self.q_instance)
+        self.shifter = Gradient(grad_method=grad)  # parameter-shift rule is the default
+        self.hamiltonian = Z ^ Z ^ Z ^ Z
     
     def execute(self, input_data, params):
         # bind data to circuit
         # execute
         # extract ouput expectations
-        expectation = StateFn(self.qc.remove_final_measurements(inplace=False))
         
-        value_dict = dict(zip(self.params + self.inputs, params + input_data))
+        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self._circuit.remove_final_measurements(inplace=False))
+        
+        value_dict = dict(zip(self.params + self.input_data, params + input_data))
         
         in_pauli_basis = PauliExpectation().convert(expectation)        
         result = self.sampler.convert(in_pauli_basis, params=value_dict).eval()
-        return result.to_matrix()[0]
+        
+        return np.real(np.array([result]))
     
     def grad(self, input_data, params):
         
-        expectation = StateFn(self._circuit.remove_final_measurements(inplace=False))
+        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self._circuit.remove_final_measurements(inplace=False))
         
-        expectation = expectation.bind_parameters(dict(zip(self.inputs, input_data)))
+        expectation = expectation.bind_parameters(dict(zip(self.input_data, input_data)))
         
         grad = self.shifter.convert(expectation)
         gradient_in_pauli_basis = PauliExpectation().convert(grad)
         value_dict = dict(zip(self.params, params))
         
-        result = self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval()
-        
-        gradInputs = np.array([g.toarray() for g in result])
+        result = np.array(self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval())
     
-        return gradInputs[:,0]
+        return np.real(result)
         
 
 class QuanvFunction(Function):
@@ -82,15 +112,20 @@ class QuanvFunction(Function):
         
         # access saved objects
         input_data, params = ctx.saved_tensors
-        qc_fn = ctx.qc_fn
         
         # Gradients w.r.t each inputs to the function
         grad_input = grad_params = grad_qc = None
         
         # Compute gradients
         # @Tristan
+        input, expectation_z = ctx.saved_tensors
+        input_list = np.array(input.tolist())
         
-        return grad_input, grad_params, grad_qc
+        gradients = ctx.quantum_circuit.grad(input_list).T
+                
+        grad_params = torch.tensor([gradients.tolist()]).float() * grad_output.float()
+        
+        return grad_params, grad_input, grad_qc
 
 
 
@@ -175,4 +210,9 @@ class QuanvNet(nn.Module):
         #whatever layers of quanvolution, pooling,
         #convolution, dropout, flattening,
         #fully connectecd layers, go here
-        return 0
+        x = F.relu(self.quanv(x))
+        x = self.conv(x)
+        x = self.dropout(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        return x
