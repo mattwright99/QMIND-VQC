@@ -64,3 +64,12 @@ def randomLayer(numQbits, gates=['rx', 'rz', 'ry'], entanglement='linear', reps=
     qc.compose(quanvolutionESU2(numQbits, gates=gates, entanglement=entanglement, reps=reps, 
                                 insert_barrier=insert_barrier), inplace=True)
     return qc.to_gate(label="Random Layer") if to_gate else qc
+
+def featureMap(n_qubits, to_gate='False') -> Union[Gate, QuantumCircuit]:
+    qc = quantumCircuit(n_qubits)
+    parameters = ParameterVector('input', n_qubits)
+    qc.h(range(n_qubits))
+    for i in range(qc.n_qubits):
+        qc.ry(parameters[i], i)
+    return qc.to_gate(label="Feature Map") if to_gate else qc
+        
