@@ -59,13 +59,13 @@ class QuanvCircuit:
         
         self.q_instance = QuantumInstance(self.backend, shots = self.shots, seed_simulator = 2718, seed_transpiler = 2718)
         self.sampler = CircuitSampler(self.q_instance)
-        self.shifter = Gradient(grad_method=grad)  # parameter-shift rule is the default
+        self.shifter = Gradient()  # parameter-shift rule is the default
         self.hamiltonian = Z ^ Z ^ Z ^ Z
     
     def execute(self, input_data, params):
         # bind data to circuit
         # execute
-        # extract ouput expectations
+        # extract output expectations
         
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self._circuit.remove_final_measurements(inplace=False))
         
