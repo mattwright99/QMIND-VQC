@@ -44,7 +44,7 @@ class QuanvCircuit:
         self.qc.compose(fMap, inplace=True)
         
         ansatz = randomLayer(  # parameterized ansatz
-            self.n_qubits  
+            self.n_qubits,
             entanglement='full', 
             gates=['rx','ry'], 
             reps=2
@@ -226,7 +226,7 @@ class QuanvLayer(nn.Module):
                 qc = self.quantum_circuits[channel]
                 weights = self.weights[channel]
                 
-                res = QuanvFunction.apply(data, weights, qc)
+                res = QuanvFunction.apply(data, weights, qc)  # TODO: returns scalar?
                 output[batch_idx, row // self.stride, col // self.stride, channel] = res
 
 
