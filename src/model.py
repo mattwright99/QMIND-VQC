@@ -49,6 +49,7 @@ class QuanvCircuit:
             gates=['rx','ry'], 
             reps=2
         )
+        self.qc.compose(ansatz, inplace=True)
         
         # Save useful parameter sizes for variational weights and input data
         self.weight_vars = ansatz.parameters
