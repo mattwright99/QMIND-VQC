@@ -22,7 +22,7 @@ class QuanvCircuit:
     def __init__(
             self,
             kernel_size=2,
-            backend=None,
+            backend=Aer.get_backend('qasm_simulator'),
             shots=1024) -> None:
         """Parameterized quanvolution circuit wrapper.
         
@@ -66,8 +66,14 @@ class QuanvCircuit:
         self.sampler = CircuitSampler(self.q_instance)
         self.shifter = Gradient()  # parameter-shift rule is the default
         self.hamiltonian = Z ^ Z ^ Z ^ Z
-    
+
+
     def execute(self, input_data, weights):
+        if isinstance(input_data, torch.Tensor):
+            input_data = np.array(input_data.tolist())
+        if isinstance(weights, torch.Tensor):
+            weights = np.array(weights.tolist())
+        
         # Set measurement expectation
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         in_pauli_basis = PauliExpectation().convert(expectation)        
@@ -78,9 +84,14 @@ class QuanvCircuit:
         result = self.sampler.convert(in_pauli_basis, params=value_dict).eval()
         
         return np.real(np.array([result]))
-    
+
+
     def grad_weights(self, input_data, weights):
-        
+        if isinstance(input_data, torch.Tensor):
+            input_data = np.array(input_data.tolist())
+        if isinstance(weights, torch.Tensor):
+            weights = np.array(weights.tolist())
+
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.input_vars, input_data)))
         
@@ -93,6 +104,11 @@ class QuanvCircuit:
         return np.real(result)
 
     def grad_input(self, input_data, weights):
+        if isinstance(input_data, torch.Tensor):
+            input_data = np.array(input_data.tolist())
+        if isinstance(weights, torch.Tensor):
+            weights = np.array(weights.tolist())
+
         pass
 
 
@@ -103,7 +119,8 @@ class QuanvFunction(Function):
     def forward(ctx, input_data, weights, quantum_circuit):
         # forward pass of the quanvolutional function
         
-        ctx.save_for_backwards(input_data, weights)
+        ctx.weights = weights
+        ctx.input_data = input_data
         ctx.qc = quantum_circuit
         
         expectations = quantum_circuit.execute(input_data, weights)
@@ -115,20 +132,19 @@ class QuanvFunction(Function):
         # backwards pass of the quanvolutional function
         
         # access saved objects
-        input_data, params = ctx.saved_tensors
+        params = ctx.weights
+        input_data = ctx.input_data
         qc = ctx.qc
 
         # Gradients w.r.t each inputs to the function
         grad_input = grad_params = grad_qc = None
         
-        input_list = np.array(input_data.tolist())
-        param_list = np.array(params.tolist())
         # Compute gradients
         if ctx.needs_input_grad[0]:
-            gradients = qc.grad_input(input_list, param_list).T
+            gradients = qc.grad_input(input_data, params).T
             grad_input = torch.tensor([gradients.tolist()]).float() * grad_output.float()
         if ctx.needs_input_grad[1]:
-            gradients = qc.grad(input_list, param_list).T
+            gradients = qc.grad_weights(input_data, params).T
             grad_params = torch.tensor([gradients.tolist()]).float() * grad_output.float()
 
         return grad_input, grad_params, grad_qc
