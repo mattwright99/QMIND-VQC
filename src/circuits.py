@@ -1,9 +1,8 @@
-from qiskit.circuit import QuantumCircuit, Parameter, ParameterVector, Gate
+from qiskit.circuit import QuantumCircuit, ParameterVector, Gate
 from typing import Union
-from qiskit import assemble, transpile
 
 
-def quanvolutionESU2(N_dims, gates=['rx', 'rz'], reps=1, entanglement='circular', insert_barrier=True):
+def quanvolutionESU2(N_dims, gates=['rx', 'rz'], reps=1, entanglement='circular', insert_barrier=False):
     
     # Function to apply rotation gates to all of our qubits
     def rotation(gate, start):
@@ -37,7 +36,7 @@ def quanvolutionESU2(N_dims, gates=['rx', 'rz'], reps=1, entanglement='circular'
         return qc
     
     # Calculate the number of parameters we will need
-    num_params = 2*len(gates)*N_dims*reps
+    num_params = len(gates)*N_dims*(reps + 1)
     parameters = ParameterVector('theta', num_params)
     qc = QuantumCircuit(N_dims, name="EfficientSU2")
     start = 0
@@ -56,20 +55,21 @@ def quanvolutionESU2(N_dims, gates=['rx', 'rz'], reps=1, entanglement='circular'
                 start += N_dims
         if insert_barrier: qc.barrier()
     
-    return qc
+    return qc, parameters
 
 def randomLayer(numQbits, gates=['rx', 'rz', 'ry'], entanglement='linear', reps=1, to_gate=True) -> Union[Gate, QuantumCircuit]:
     qc = QuantumCircuit(numQbits)
     insert_barrier = False if to_gate else True 
     qc.compose(quanvolutionESU2(numQbits, gates=gates, entanglement=entanglement, reps=reps, 
                                 insert_barrier=insert_barrier), inplace=True)
-    return qc.to_gate(label="Random Layer") if to_gate else qc
+    return qc
+
 
 def featureMap(n_qubits, to_gate='False') -> Union[Gate, QuantumCircuit]:
-    qc = quantumCircuit(n_qubits)
+    qc = QuantumCircuit(n_qubits)
     parameters = ParameterVector('input', n_qubits)
     qc.h(range(n_qubits))
-    for i in range(qc.n_qubits):
+    for i in range(n_qubits):
         qc.ry(parameters[i], i)
-    return qc.to_gate(label="Feature Map") if to_gate else qc
+    return qc, parameters
         
