@@ -108,8 +108,17 @@ class QuanvCircuit:
             input_data = np.array(input_data.tolist())
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
-
-        pass
+                        
+        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
+        expectation = expectation.bind_parameters(dict(zip(self.weight_vars, weights)))
+                
+        grad = self.shifter.convert(expectation)
+        gradient_in_pauli_basis = PauliExpectation().convert(grad)
+        value_dict = dict(zip(self.input_vars, input_data))
+        
+        result = np.array(self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval())
+    
+        return np.real(result)
 
 
 class QuanvFunction(Function):

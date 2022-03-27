@@ -36,7 +36,7 @@ def quanvolutionESU2(N_dims, gates=['rx', 'rz'], reps=1, entanglement='circular'
         return qc
     
     # Calculate the number of parameters we will need
-    num_params = 2*len(gates)*N_dims*reps
+    num_params = len(gates)*N_dims*(reps + 1)
     parameters = ParameterVector('theta', num_params)
     qc = QuantumCircuit(N_dims, name="EfficientSU2")
     start = 0
