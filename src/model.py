@@ -7,8 +7,6 @@ from torchvision import datasets, transforms
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torchsummary import summary
-
 from qiskit import QuantumCircuit,Aer
 from qiskit.opflow import Gradient, NaturalGradient, QFI, Hessian
 from qiskit.opflow import Z, I, X, Y
@@ -164,40 +162,47 @@ class QuanvLayer(nn.Module):
 
         super(QuanvLayer, self).__init__()
         
-        self.qcs = [QuanvCircuit(kernel_size=kernel_size, backend=backend, shots=shots)
-                    for c in range(out_channels)]
+        self.quantum_circuits = [
+            QuanvCircuit(kernel_size=kernel_size, backend=backend, shots=shots)
+            for c in range(out_channels)
+        ]
                 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
         
-        self.parameters = nn.Parameter(torch.empty(self.get_parameter_shape()))
-        nn.init.uniform_(self.parameters, -0.1, 0.1)
+        self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()))
+        nn.init.uniform_(self.weights, -0.1, 0.1)
 
     def _get_parameter_shape(self):
-        """Computes the number of trainable parameters required by the quantum circuit function"""
+        """Computes the number of trainable parameters required by the quantum circuit functions"""
         
-        # TODO: implement based on some ansatz specification (see get_quanv_fn) that is either provided
-        # to the object or a global default
-        
-        return (4,)
-        
+        n_filters = len(self.quantum_circuits)
+        n_params_per_circ = self.quantum_circuits[0].n_weights
+        return (n_filters, n_params_per_circ)
+  
+    def _get_out_dim(self, imgs):
+        """Get dimensions of output tensor after applying convolution"""
 
-    def _get_out_dim(self, img):
-        bs, h, w, ch = img.size()
+        bs, h, w, ch = imgs.size()
         h_out = (int(h) - self.kernel_size) // self.stride + 1
         w_out = (int(w) - self.kernel_size) // self.stride + 1
         return bs, h_out, w_out, self.out_channels
 
-
     def convolve(self, imgs):
         """Get input to circuit following a convolution pattern"""
-        
-        # @Robbie
-    
-        yield data, batch_idx, row, col
 
+        _, height, width, _ = imgs.size()
+        # Iterate over all images in batch
+        for batch_idx, img in enumerate(imgs):
+            # Rows
+            for r in range(0, height - self.kernel_size, self.stride):
+                # Columns
+                for c in range(0, width - self.kernel_size, self.stride):
+                    # Grab section of image under filter
+                    data = img[r : r + self.kernel_size, c : c + self.kernel_size]
+                    yield data.flatten(), batch_idx, r, c
 
     def forward(self, imgs):
         """Apply variational quanvolution layer to image
@@ -206,15 +211,23 @@ class QuanvLayer(nn.Module):
         ----------
         imgs : np.ndarray
             A vector of input images. Should have shape [batch_size, height, width, n_channels].
+        
+        Returns
+        -------
+        # TODO
         """
         
-        out = torch.empty(self._get_out_dim(imgs), dtype=torch.float32)
+        output = torch.empty(self._get_out_dim(imgs), dtype=torch.float64)
         
-        # @Robbie - iterate over image and apply function. Ex:
-        for data, _, _, _ in self.convolve(imgs):
-            res = QuanvFunction.apply(data, self.parameters, self.qc)
-            
-            out[batch_idx, row // self.stride, col // self.stride] = res
+        # Convolve over given images
+        for data, batch_idx, row, col in self.convolve(imgs):
+            # Process data with each quanvolutional circuit
+            for channel in range(self.out_channels):
+                qc = self.quantum_circuits[channel]
+                weights = self.weights[channel]
+                
+                res = QuanvFunction.apply(data, weights, qc)
+                output[batch_idx, row // self.stride, col // self.stride, channel] = res
 
 
 class QuanvNet(nn.Module):
