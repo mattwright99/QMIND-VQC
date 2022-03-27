@@ -15,7 +15,7 @@ from qiskit.opflow import PauliExpectation, CircuitSampler
 from qiskit.utils import QuantumInstance
 
 
-from circuits import randomLayer, featureMap
+from circuits import randomLayer, featureMap, quanvolutionESU2
 
 
 class QuanvCircuit:
@@ -40,10 +40,10 @@ class QuanvCircuit:
         self.n_qubits = kernel_size**2
         self.qc = QuantumCircuit(self.n_qubits)
         
-        fMap = featureMap(self.n_qubits)  # feature map to encode input data
+        fMap, input_vars = featureMap(self.n_qubits)  # feature map to encode input data
         self.qc.compose(fMap, inplace=True)
         
-        ansatz = randomLayer(  # parameterized ansatz
+        ansatz, weights_vars = quanvolutionESU2(  # parameterized ansatz
             self.n_qubits,
             entanglement='full', 
             gates=['rx','ry'], 
@@ -52,10 +52,10 @@ class QuanvCircuit:
         self.qc.compose(ansatz, inplace=True)
         
         # Save useful parameter sizes for variational weights and input data
-        self.weight_vars = ansatz.parameters
-        self.n_weights = ansatz.num_parameters
+        self.weight_vars = weights_vars
+        self.n_weights = len(weights_vars)
 
-        self.input_vars = fMap.parameters
+        self.input_vars = input_vars
         self.n_inputs = self.n_qubits
         
         # Configure quantum instance
@@ -73,7 +73,8 @@ class QuanvCircuit:
         in_pauli_basis = PauliExpectation().convert(expectation)        
 
         # Dind values to circuit and get expectation value
-        value_dict = dict(zip(self.weight_vars + self.input_vars, weights + input_data))
+        value_dict = dict(zip(self.weight_vars, weights))
+        value_dict.update(dict(zip(self.input_vars, input_data)))
         result = self.sampler.convert(in_pauli_basis, params=value_dict).eval()
         
         return np.real(np.array([result]))
