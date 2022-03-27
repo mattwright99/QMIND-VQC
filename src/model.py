@@ -9,8 +9,7 @@ import torch.nn.functional as F
 
 from torchsummary import summary
 
-import qiskit
-from qiskit.visualization import *
+from qiskit import QuantumCircuit,Aer
 from qiskit.opflow import Gradient, NaturalGradient, QFI, Hessian
 from qiskit.opflow import Z, I, X, Y
 from qiskit.opflow import StateFn
@@ -21,116 +20,122 @@ from qiskit.utils import QuantumInstance
 from circuits import randomLayer, featureMap
 
 
-# @Julia and @Tristan
 class QuanvCircuit:
-    """ Parameterizes Quanvolution circuit wrapper """
     def __init__(
             self,
             kernel_size=2,
             backend=None,
-            shots=1024,
-            ansatz='') -> None:
+            shots=1024) -> None:
+        """Parameterized quanvolution circuit wrapper.
+        
+        Parameters
+        ----------
+        kernel_size : int
+            Width of square filter used for convolution.
+        backend : qiskit.providers.Backend 
+            Qiskit quantum backend to execute circuits on.
+        shots : int
+            Number of shots used for circuit execution.
+        """
         
         # Instantiate quantum circuit
         self.n_qubits = kernel_size**2
-        self.qc = qiskit.QuantumCircuit(self.n_qubits)
+        self.qc = QuantumCircuit(self.n_qubits)
         
-        fMap = featureMap(self.n_qubits)
-        
+        fMap = featureMap(self.n_qubits)  # feature map to encode input data
         self.qc.compose(fMap, inplace=True)
         
-        ansatz = randomLayer(self.n_qubits
+        ansatz = randomLayer(  # parameterized ansatz
+            self.n_qubits  
             entanglement='full', 
             gates=['rx','ry'], 
-            reps = 2)
+            reps=2
+        )
         
-        
-        # create param vector 
-        # create input param vector
-        # apply appropriate gates
-        self.params = ansatz.parameters
-        self.n_params = ansatz.num_parameters
-        
-        self.input_data = fMap.parameters
+        # Save useful parameter sizes for variational weights and input data
+        self.weight_vars = ansatz.parameters
+        self.n_weights = ansatz.num_parameters
+
+        self.input_vars = fMap.parameters
         self.n_inputs = self.n_qubits
         
+        # Configure quantum instance
         self.backend = backend
         self.shots = shots
         
-        self.q_instance = QuantumInstance(self.backend, shots = self.shots, seed_simulator = 2718, seed_transpiler = 2718)
+        self.q_instance = QuantumInstance(self.backend, shots=self.shots, seed_simulator=2718, seed_transpiler=2718)
         self.sampler = CircuitSampler(self.q_instance)
         self.shifter = Gradient()  # parameter-shift rule is the default
         self.hamiltonian = Z ^ Z ^ Z ^ Z
     
-    def execute(self, input_data, params):
-        # bind data to circuit
-        # execute
-        # extract output expectations
-        
-        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self._circuit.remove_final_measurements(inplace=False))
-        
-        value_dict = dict(zip(self.params + self.input_data, params + input_data))
-        
+    def execute(self, input_data, weights):
+        # Set measurement expectation
+        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         in_pauli_basis = PauliExpectation().convert(expectation)        
+
+        # Dind values to circuit and get expectation value
+        value_dict = dict(zip(self.weight_vars + self.input_vars, weights + input_data))
         result = self.sampler.convert(in_pauli_basis, params=value_dict).eval()
         
         return np.real(np.array([result]))
     
-    def grad(self, input_data, params):
+    def grad_weights(self, input_data, weights):
         
-        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self._circuit.remove_final_measurements(inplace=False))
-        
-        expectation = expectation.bind_parameters(dict(zip(self.input_data, input_data)))
+        expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
+        expectation = expectation.bind_parameters(dict(zip(self.input_vars, input_data)))
         
         grad = self.shifter.convert(expectation)
         gradient_in_pauli_basis = PauliExpectation().convert(grad)
-        value_dict = dict(zip(self.params, params))
+        value_dict = dict(zip(self.weight_vars, weights))
         
         result = np.array(self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval())
     
         return np.real(result)
-        
+
+    def grad_input(self, input_data, weights):
+        pass
+
 
 class QuanvFunction(Function):
-    """ Variational Quanvolution function definition """
+    """Variational Quanvolution function definition."""
     
     @staticmethod
-    def forward(ctx, input_data, params, quantum_circuit):
+    def forward(ctx, input_data, weights, quantum_circuit):
         # forward pass of the quanvolutional function
         
-        ctx.save_for_backwards(input_data, params)
+        ctx.save_for_backwards(input_data, weights)
         ctx.qc = quantum_circuit
         
-        expectations = quantum_circuit.execute(input_data, params)
+        expectations = quantum_circuit.execute(input_data, weights)
         result = torch.tensor([expectations])
         return result
         
     @staticmethod
     def backward(ctx, grad_output):
-        #backwards pass of the quanvolutional function
+        # backwards pass of the quanvolutional function
         
         # access saved objects
         input_data, params = ctx.saved_tensors
-        
+        qc = ctx.qc
+
         # Gradients w.r.t each inputs to the function
         grad_input = grad_params = grad_qc = None
         
+        input_list = np.array(input_data.tolist())
+        param_list = np.array(params.tolist())
         # Compute gradients
-        # @Tristan
-        input, expectation_z = ctx.saved_tensors
-        input_list = np.array(input.tolist())
-        
-        gradients = ctx.quantum_circuit.grad(input_list).T
-                
-        grad_params = torch.tensor([gradients.tolist()]).float() * grad_output.float()
-        
-        return grad_params, grad_input, grad_qc
+        if ctx.needs_input_grad[0]:
+            gradients = qc.grad_input(input_list, param_list).T
+            grad_input = torch.tensor([gradients.tolist()]).float() * grad_output.float()
+        if ctx.needs_input_grad[1]:
+            gradients = qc.grad(input_list, param_list).T
+            grad_params = torch.tensor([gradients.tolist()]).float() * grad_output.float()
+
+        return grad_input, grad_params, grad_qc
 
 
 
 class QuanvLayer(nn.Module):
-    """ Quanvolution layer definition """
-    
     def __init__(
             self,
             in_channels,
@@ -138,14 +143,32 @@ class QuanvLayer(nn.Module):
             kernel_size=2,
             stride=1,
             shots=100,
-            backend=qiskit.Aer.get_backend('qasm_simulator')):
-            
+            backend=Aer.get_backend('qasm_simulator')):
+        """Parameterized quanvolution layer.
+        
+        Parameters
+        ----------
+        in_channels : int
+            Number of inputs channels.
+        out_channels : int 
+            Number of output channels. Equivalent to number of quanvolution kernels to apply.
+        kernel_size : int
+            Width of square filter used for convolution.
+        stride : int
+            Step size used for convolution.
+        backend : qiskit.providers.Backend 
+            Qiskit quantum backend to execute circuits on.
+        shots : int
+            Number of shots used for circuit execution.
+        """
+
         super(QuanvLayer, self).__init__()
         
-        self.qc = QuanvCircuit(kernel_size=kernel_size, backend=backend, shots=shots) # TODO: multiple circuits? analogue to multiple kernel CNN
+        self.qcs = [QuanvCircuit(kernel_size=kernel_size, backend=backend, shots=shots)
+                    for c in range(out_channels)]
                 
         self.in_channels = in_channels
-        self.out_channels = out_channels  # TODO: what do we do with out_channels - look at CNN
+        self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
         

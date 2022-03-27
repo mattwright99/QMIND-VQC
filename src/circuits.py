@@ -1,6 +1,5 @@
-from qiskit.circuit import QuantumCircuit, Parameter, ParameterVector, Gate
+from qiskit.circuit import QuantumCircuit, ParameterVector, Gate
 from typing import Union
-from qiskit import assemble, transpile
 
 
 def quanvolutionESU2(N_dims, gates=['rx', 'rz'], reps=1, entanglement='circular', insert_barrier=True):
@@ -65,8 +64,9 @@ def randomLayer(numQbits, gates=['rx', 'rz', 'ry'], entanglement='linear', reps=
                                 insert_barrier=insert_barrier), inplace=True)
     return qc.to_gate(label="Random Layer") if to_gate else qc
 
+
 def featureMap(n_qubits, to_gate='False') -> Union[Gate, QuantumCircuit]:
-    qc = quantumCircuit(n_qubits)
+    qc = QuantumCircuit(n_qubits)
     parameters = ParameterVector('input', n_qubits)
     qc.h(range(n_qubits))
     for i in range(qc.n_qubits):
