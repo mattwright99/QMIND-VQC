@@ -47,7 +47,7 @@ class QuanvCircuit:
             self.n_qubits,
             entanglement='full', 
             gates=['rx','ry'], 
-            reps=2
+            reps=4
         )
         self.qc.compose(ansatz, inplace=True)
         
@@ -132,8 +132,8 @@ class QuanvFunction(Function):
         ctx.input_data = input_data
         ctx.qc = quantum_circuit
         
-        expectations = quantum_circuit.execute(input_data, weights)
-        result = torch.tensor([expectations])
+        expectations = quantum_circuit.execute(input_data, weights).tolist()
+        result = torch.tensor(expectations)
         return result
         
     @staticmethod
