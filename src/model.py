@@ -133,7 +133,7 @@ class QuanvFunction(Function):
         ctx.qc = quantum_circuit
         
         expectations = quantum_circuit.execute(input_data, weights)
-        result = torch.tensor([expectations])
+        result = torch.tensor(np.expand_dims(expectations, axis=0))
         return result
         
     @staticmethod
@@ -212,7 +212,7 @@ class QuanvLayer(nn.Module):
     def _get_out_dim(self, imgs):
         """Get dimensions of output tensor after applying convolution"""
 
-        bs, h, w, ch = imgs.size()
+        bs, h, w, ch = imgs.shape
         h_out = (int(h) - self.kernel_size) // self.stride + 1
         w_out = (int(w) - self.kernel_size) // self.stride + 1
         return bs, h_out, w_out, self.out_channels
@@ -220,7 +220,7 @@ class QuanvLayer(nn.Module):
     def convolve(self, imgs):
         """Get input to circuit following a convolution pattern"""
 
-        _, height, width, _ = imgs.size()
+        _, height, width, _ = imgs.shape
         # Iterate over all images in batch
         for batch_idx, img in enumerate(imgs):
             # Rows
@@ -256,6 +256,7 @@ class QuanvLayer(nn.Module):
                 res = QuanvFunction.apply(data, weights, qc)  # TODO: returns scalar?
                 output[batch_idx, row // self.stride, col // self.stride, channel] = res
 
+        return output
 
 class QuanvNet(nn.Module):
     """ Overall model architecture that applies the quanvolutional layer """
