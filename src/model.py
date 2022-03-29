@@ -74,6 +74,7 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
         
+        input_data = np.pi * input_data  # scale data from [0,1] to [0, pi]
         # Set measurement expectation
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         in_pauli_basis = PauliExpectation().convert(expectation)        
@@ -92,6 +93,8 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
 
+        input_data = 2*np.pi * input_data  # scale data from [0,1] to [0, pi]
+
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.input_vars, input_data)))
         
@@ -108,6 +111,8 @@ class QuanvCircuit:
             input_data = np.array(input_data.tolist())
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
+    
+        input_data = 2*np.pi * input_data  # scale data from [0,1] to [0, pi]
                         
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.weight_vars, weights)))
@@ -163,7 +168,7 @@ class QuanvFunction(Function):
 class QuanvLayer(nn.Module):
     def __init__(
             self,
-            in_channels,
+            in_channels=1,
             out_channels=4,
             kernel_size=2,
             stride=1,
@@ -189,93 +194,125 @@ class QuanvLayer(nn.Module):
 
         super(QuanvLayer, self).__init__()
         
+        if in_channels != 1:
+            raise Exception(f'Only support 1 input channel but got {in_channels}')
+
         self.quantum_circuits = [
             QuanvCircuit(kernel_size=kernel_size, backend=backend, shots=shots)
             for c in range(out_channels)
         ]
-                
+
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
-        
+
         self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()))
         nn.init.uniform_(self.weights, -0.1, 0.1)
 
     def _get_parameter_shape(self):
         """Computes the number of trainable parameters required by the quantum circuit functions"""
-        
+
         n_filters = len(self.quantum_circuits)
         n_params_per_circ = self.quantum_circuits[0].n_weights
         return (n_filters, n_params_per_circ)
-  
+
     def _get_out_dim(self, imgs):
         """Get dimensions of output tensor after applying convolution"""
 
-        bs, h, w, ch = imgs.shape
-        h_out = (int(h) - self.kernel_size) // self.stride + 1
-        w_out = (int(w) - self.kernel_size) // self.stride + 1
-        return bs, h_out, w_out, self.out_channels
+        bs, ch, h, w = imgs.shape
+        h_out = (h - self.kernel_size) // self.stride + 1
+        w_out = (w - self.kernel_size) // self.stride + 1
+        return bs, self.out_channels, h_out, w_out
 
     def convolve(self, imgs):
         """Get input to circuit following a convolution pattern"""
 
-        _, height, width, _ = imgs.shape
+        _, nchannels, height, width = imgs.shape
+        if nchannels != 1:
+            raise Exception(f'Only support images with one channel but got {nchannels}')
+
         # Iterate over all images in batch
         for batch_idx, img in enumerate(imgs):
-            # Rows
             for r in range(0, height - self.kernel_size, self.stride):
-                # Columns
                 for c in range(0, width - self.kernel_size, self.stride):
                     # Grab section of image under filter
-                    data = img[r : r + self.kernel_size, c : c + self.kernel_size]
+                    data = img[0, r : r + self.kernel_size, c : c + self.kernel_size]
                     yield data.flatten(), batch_idx, r, c
 
     def forward(self, imgs):
         """Apply variational quanvolution layer to image
-        
+
         Parameters
         ----------
-        imgs : np.ndarray
-            A vector of input images. Should have shape [batch_size, height, width, n_channels].
-        
+        imgs : np.ndarray or torch.Tensor
+            A vector of input images. Should have shape [batch_size, n_channels, height, width].
+
         Returns
         -------
-        # TODO
+        torch.Tensor
+            Processed results.
         """
-        
-        output = torch.empty(self._get_out_dim(imgs), dtype=torch.float64)
-        
+
+        output = torch.empty(self._get_out_dim(imgs), dtype=torch.float32)
+
         # Convolve over given images
         for data, batch_idx, row, col in self.convolve(imgs):
             # Process data with each quanvolutional circuit
-            for channel in range(self.out_channels):
-                qc = self.quantum_circuits[channel]
-                weights = self.weights[channel]
-                
-                res = QuanvFunction.apply(data, weights, qc)  # TODO: returns scalar?
-                output[batch_idx, row // self.stride, col // self.stride, channel] = res
+            for ch in range(self.out_channels):
+                qc = self.quantum_circuits[ch]
+                weights = self.weights[ch]
+
+                res = QuanvFunction.apply(data, weights, qc)
+                output[batch_idx, ch, row//self.stride, col//self.stride] = res
 
         return output
 
+
 class QuanvNet(nn.Module):
-    """ Overall model architecture that applies the quanvolutional layer """
-    def __init__(self):
+    """Overall model architecture that applies the quanvolutional layer"""
+    def __init__(self, input_size=8, shots=128):
         super(QuanvNet, self).__init__()
-        self.quanv = QuanvLayer(in_channels=1, out_channels=4, kernel_size=2)
-        self.conv = nn.Conv2d(6, 16, kernel_size=5)
-        self.dropout = nn.Dropout2d()
-        self.fc1 = nn.Linear(256, 64)
+
+        self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
+        self.quanv = QuanvLayer(in_channels=1, out_channels=4, kernel_size=2, shots=shots)
+        self.conv = nn.Conv2d(4, 16, kernel_size=3)
+        # self.dropout = nn.Dropout2d()
+        self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x):
-        #this is where we build our entire network
-        #whatever layers of quanvolution, pooling,
-        #convolution, dropout, flattening,
-        #fully connectecd layers, go here
+        # this is where we build our entire network
+        # whatever layers of quanvolution, pooling,
+        # convolution, dropout, flattening,
+        # fully connectecd layers, go here
         x = F.relu(self.quanv(x))
-        x = self.conv(x)
-        x = self.dropout(x)
+        x = F.relu(self.conv(x))
+        x = x.view(-1, self.fc_size)
         x = self.fc1(x)
         x = self.fc2(x)
-        return x
+        return F.log_softmax(x, dim=1)
+
+class ClassicNet(nn.Module):
+    """Overall model architecture that applies a classical version of our model"""
+    def __init__(self, input_size=8):
+        super(QuanvNet, self).__init__()
+
+        self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
+        self.conv1 = nn.Conv2d(1, 4, kernel_size=2)
+        self.conv2 = nn.Conv2d(4, 16, kernel_size=3)
+        # self.dropout = nn.Dropout2d()
+        self.fc1 = nn.Linear(self.fc_size, 64)
+        self.fc2 = nn.Linear(64, 10)
+
+    def forward(self, x):
+        # this is where we build our entire network
+        # whatever layers of quanvolution, pooling,
+        # convolution, dropout, flattening,
+        # fully connectecd layers, go here
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = x.view(-1, self.fc_size)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        return F.log_softmax(x, dim=1)
