@@ -44,11 +44,11 @@ test_loader = torch.utils.data.DataLoader(
 class CustomQunvNet(nn.Module):
     """Layout of Quanv model that can be modified on the fly"""
     def __init__(self, input_size=8, shots=128):
-        super(QuanvNet, self).__init__()
+        super(CustomQunvNet, self).__init__()
 
         self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
-        self.quanv = QuanvLayer(in_channels=1, out_channels=4, kernel_size=2, shots=shots)
-        self.conv = nn.Conv2d(4, 16, kernel_size=3)
+        self.quanv = QuanvLayer(in_channels=1, out_channels=2, kernel_size=2, shots=shots)
+        self.conv = nn.Conv2d(2, 16, kernel_size=3)
         # self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 10)

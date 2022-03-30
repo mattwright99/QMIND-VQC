@@ -23,7 +23,7 @@ class QuanvCircuit:
             self,
             kernel_size=2,
             backend=Aer.get_backend('qasm_simulator'),
-            shots=1024) -> None:
+            shots=128) -> None:
         """Parameterized quanvolution circuit wrapper.
         
         Parameters
@@ -172,7 +172,7 @@ class QuanvLayer(nn.Module):
             out_channels=4,
             kernel_size=2,
             stride=1,
-            shots=100,
+            shots=128,
             backend=Aer.get_backend('qasm_simulator')):
         """Parameterized quanvolution layer.
         
@@ -275,8 +275,8 @@ class QuanvNet(nn.Module):
         super(QuanvNet, self).__init__()
 
         self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
-        self.quanv = QuanvLayer(in_channels=1, out_channels=4, kernel_size=2, shots=shots)
-        self.conv = nn.Conv2d(4, 16, kernel_size=3)
+        self.quanv = QuanvLayer(in_channels=1, out_channels=2, kernel_size=2, shots=shots)
+        self.conv = nn.Conv2d(2, 16, kernel_size=3)
         # self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 10)
