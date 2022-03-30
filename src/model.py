@@ -282,7 +282,7 @@ class QuanvNet(nn.Module):
     def __init__(self, input_size=8, shots=128):
         super(QuanvNet, self).__init__()
 
-        self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
+        self.fc_size = (input_size - 3)**4 * 16  # output size of convloving layers
         self.quanv = QuanvLayer(in_channels=1, out_channels=4, kernel_size=2, shots=shots)
         self.conv = nn.Conv2d(4, 16, kernel_size=3)
         # self.dropout = nn.Dropout2d()
@@ -304,12 +304,12 @@ class QuanvNet(nn.Module):
 class ClassicNet(nn.Module):
     """Overall model architecture that applies a classical version of our model"""
     def __init__(self, input_size=8):
-        super(QuanvNet, self).__init__()
+        super(ClassicNet, self).__init__()
 
-        self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
+        self.fc_size = (input_size - 3)**4 * 16  # output size of convloving layers
         self.conv1 = nn.Conv2d(1, 4, kernel_size=2)
         self.conv2 = nn.Conv2d(4, 16, kernel_size=3)
-        # self.dropout = nn.Dropout2d()
+        self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 10)
 
@@ -320,7 +320,8 @@ class ClassicNet(nn.Module):
         # fully connectecd layers, go here
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
+        x = self.dropout(x)
         x = x.view(-1, self.fc_size)
-        x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
         return F.log_softmax(x, dim=1)
