@@ -22,7 +22,7 @@ class QuanvCircuit:
     def __init__(
             self,
             kernel_size=2,
-            backend=Aer.get_backend('qasm_simulator'),
+            backend=Aer.get_backend('aer_simulator_matrix_product_state'),
             shots=1024,
             ansatz=None,
             feature_map=None
@@ -91,7 +91,7 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
 
-        input_data = 2*np.pi * input_data  # scale data from [0,1] to [0, pi]
+        input_data = np.pi * input_data  # scale data from [0,1] to [0, pi]
 
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.input_vars, input_data)))
@@ -110,7 +110,7 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
     
-        input_data = 2*np.pi * input_data  # scale data from [0,1] to [0, pi]
+        input_data = np.pi * input_data  # scale data from [0,1] to [0, pi]
                         
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.weight_vars, weights)))
@@ -203,7 +203,7 @@ class QuanvLayer(nn.Module):
                          shots=shots, 
                          ansatz=quanvolutionESU2(  # parameterized ansatz
                             kernel_size**2,
-                            entanglement='full', 
+                            entanglement='circular', 
                             gates=['rx','ry'], 
                             reps=2),
                          feature_map=featureMap(kernel_size**2))
