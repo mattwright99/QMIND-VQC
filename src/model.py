@@ -23,7 +23,10 @@ class QuanvCircuit:
             self,
             kernel_size=2,
             backend=Aer.get_backend('qasm_simulator'),
-            shots=1024) -> None:
+            shots=1024,
+            ansatz=None,
+            feature_map=None
+            ) -> None:
         """Parameterized quanvolution circuit wrapper.
         
         Parameters
@@ -40,15 +43,10 @@ class QuanvCircuit:
         self.n_qubits = kernel_size**2
         self.qc = QuantumCircuit(self.n_qubits)
         
-        fMap, input_vars = featureMap(self.n_qubits)  # feature map to encode input data
+        fMap, input_vars = feature_map  # feature map to encode input data
         self.qc.compose(fMap, inplace=True)
         
-        ansatz, weights_vars = quanvolutionESU2(  # parameterized ansatz
-            self.n_qubits,
-            entanglement='full', 
-            gates=['rx','ry'], 
-            reps=4
-        )
+        ansatz, weights_vars = ansatz
         self.qc.compose(ansatz, inplace=True)
         
         # Save useful parameter sizes for variational weights and input data
@@ -190,7 +188,15 @@ class QuanvLayer(nn.Module):
         super(QuanvLayer, self).__init__()
         
         self.quantum_circuits = [
-            QuanvCircuit(kernel_size=kernel_size, backend=backend, shots=shots)
+            QuanvCircuit(kernel_size=kernel_size, 
+                         backend=backend, 
+                         shots=shots, 
+                         ansatz=quanvolutionESU2(  # parameterized ansatz
+                            kernel_size**2,
+                            entanglement='full', 
+                            gates=['rx','ry'], 
+                            reps=4),
+                         feature_map=featureMap(kernel_size**2))
             for c in range(out_channels)
         ]
                 
