@@ -69,7 +69,6 @@ def randomLayer(numQbits, gates=['rx', 'rz', 'ry'], entanglement='linear', reps=
 def featureMap(n_qubits, to_gate='False') -> Union[Gate, QuantumCircuit]:
     qc = QuantumCircuit(n_qubits)
     parameters = ParameterVector('input', n_qubits)
-    qc.h(range(n_qubits))
     for i in range(n_qubits):
         qc.ry(parameters[i], i)
     return qc, parameters

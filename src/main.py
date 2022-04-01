@@ -107,4 +107,8 @@ plt.plot(range(len(train_losses)), train_losses, color='blue')
 # plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
 plt.xlabel('number of training examples seen')
 plt.ylabel('negative log likelihood loss')
+plt.savefig("training.pdf", dpi=800)
 plt.show()
+
+np.save('train_loss', train_losses)
+np.save('train_acc', train_accs)

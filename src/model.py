@@ -203,9 +203,9 @@ class QuanvLayer(nn.Module):
                          shots=shots, 
                          ansatz=quanvolutionESU2(  # parameterized ansatz
                             kernel_size**2,
-                            entanglement='full', 
+                            entanglement='circular', 
                             gates=['rx','ry'], 
-                            reps=4),
+                            reps=1),
                          feature_map=featureMap(kernel_size**2))
             for c in range(out_channels)
         ]
