@@ -216,7 +216,7 @@ class QuanvLayer(nn.Module):
         self.stride = stride
 
         self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()))
-        nn.init.uniform_(self.weights, -0.1, 0.1)
+        nn.init.uniform_(self.weights, -np.pi, np.pi)
 
     def _get_parameter_shape(self):
         """Computes the number of trainable parameters required by the quantum circuit functions"""
@@ -279,7 +279,7 @@ class QuanvLayer(nn.Module):
 
 class QuanvNet(nn.Module):
     """Overall model architecture that applies the quanvolutional layer"""
-    def __init__(self, input_size=8, shots=128):
+    def __init__(self, input_size=8, shots=128, n_classes=10):
         super(QuanvNet, self).__init__()
 
         self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
@@ -287,7 +287,7 @@ class QuanvNet(nn.Module):
         self.conv = nn.Conv2d(2, 16, kernel_size=3)
         # self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
-        self.fc2 = nn.Linear(64, 10)
+        self.fc2 = nn.Linear(64, n_classes)
 
     def forward(self, x):
         # this is where we build our entire network
