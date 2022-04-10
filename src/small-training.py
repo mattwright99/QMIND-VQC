@@ -63,29 +63,69 @@ test_loader = torch.utils.data.DataLoader(X_test, batch_size=batch_size_test, sh
 
 
 class CustomQunvNet(nn.Module):
+# # ---------------OPTION 1: SINGLE CONV LAYER --------------------------------
+#     """Layout of Quanv model that can be modified on the fly"""
+#     def __init__(self, input_size=8, shots=128):
+#         super(CustomQunvNet, self).__init__()
+
+#         # self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
+#         # # this ^ is 400
+#         self.fc_size = 6 * 6 * 16 # = 576
+#         # self.quanv = QuanvLayer(in_channels=1, out_channels=2, kernel_size=2, shots=shots)
+#         self.conv = nn.Conv2d(1, 16, kernel_size=3)
+#         # self.dropout = nn.Dropout2d()
+#         self.fc1 = nn.Linear(self.fc_size, 64)
+#         self.fc2 = nn.Linear(64, 2)
+
+        
+
+#     def forward(self, x):
+#         # this is where we build our entire network
+#         # whatever layers of quanvolution, pooling,
+#         # convolution, dropout, flattening,
+#         # fully connectecd layers, go here
+#         # x = F.relu(self.quanv(x))
+#         x = F.relu(self.conv(x))
+#         # x = x.view(-1, self.fc_size)
+#         x = torch.flatten(x, start_dim=1)
+#         x = self.fc1(x)
+#         x = self.fc2(x)
+#         return F.log_softmax(x, dim=1)
+
+#     #--------------------------------------------------------------------------
+
+
+
+    # ---------------OPTION 2: REPLACE QUANV WITH CONV --------------------------------
     """Layout of Quanv model that can be modified on the fly"""
     def __init__(self, input_size=8, shots=128):
         super(CustomQunvNet, self).__init__()
 
-        self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
-        self.quanv = QuanvLayer(in_channels=1, out_channels=2, kernel_size=2, shots=shots)
-        self.conv = nn.Conv2d(2, 16, kernel_size=3)
+        # self.fc_size = (input_size - 3)**2 * 16 # = 400  # output size of convloving layers
+        # # this ^ is 400
+        # self.fc_size = 6 * 6 * 16 # = 576
+        self.fc_size = 4 * 4 * 32 # = 512
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=3)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3)
         # self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 2)
+
+        
 
     def forward(self, x):
         # this is where we build our entire network
         # whatever layers of quanvolution, pooling,
         # convolution, dropout, flattening,
         # fully connectecd layers, go here
-        x = F.relu(self.quanv(x))
-        x = F.relu(self.conv(x))
-        x = x.view(-1, self.fc_size)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = torch.flatten(x, start_dim=1)
         x = self.fc1(x)
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
 
+#-------------------------------------------------------------------------------------
 
 # Model trianing
 model = CustomQunvNet()
@@ -133,7 +173,7 @@ for epoch in range(n_epochs):
     train_accs.append(sum(epoch_train_acc) / len(epoch_train_acc))
     test_accs.append(sum(epoch_test_acc) / len(epoch_test_acc))
 
-    print('Training [{:.0f}%] \t Loss: {:.4f} \t Accuracy: {:.4} \t Test Accuracy: {:.4}'.format(
+    print('Training Progress: [{:.0f}%] \t Loss: {:.4f} \t Train Acc: {:.4} \t Test Acc: {:.4}'.format(
         100. * (epoch + 1) / n_epochs, train_losses[-1], train_accs[-1], test_accs[-1]))
 
 
