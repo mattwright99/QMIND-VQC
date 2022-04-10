@@ -62,7 +62,7 @@ class QuanvCircuit:
         
         self.q_instance = QuantumInstance(self.backend, shots=self.shots, seed_simulator=2718, seed_transpiler=2718)
         self.sampler = CircuitSampler(self.q_instance)
-        self.shifter = Gradient()  # parameter-shift rule is the default
+        self.shifter = Gradient(grad_method='lin_comb')  # parameter-shift rule is the default
         self.hamiltonian = Z ^ Z ^ Z ^ Z
 
 
@@ -173,7 +173,8 @@ class QuanvLayer(nn.Module):
             kernel_size=2,
             stride=1,
             shots=128,
-            backend=Aer.get_backend('qasm_simulator')):
+            backend=Aer.get_backend('qasm_simulator'),
+            trainable=True):
         """Parameterized quanvolution layer.
         
         Parameters
@@ -205,7 +206,7 @@ class QuanvLayer(nn.Module):
                             kernel_size**2,
                             entanglement='circular', 
                             gates=['rx','ry'], 
-                            reps=1),
+                            reps=2),
                          feature_map=featureMap(kernel_size**2))
             for c in range(out_channels)
         ]
@@ -215,7 +216,7 @@ class QuanvLayer(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
 
-        self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()))
+        self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()), requires_grad=trainable)
         nn.init.uniform_(self.weights, -np.pi, np.pi)
 
     def _get_parameter_shape(self):
