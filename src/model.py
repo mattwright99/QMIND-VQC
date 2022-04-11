@@ -14,6 +14,7 @@ from qiskit.opflow import StateFn
 from qiskit.opflow import PauliExpectation, CircuitSampler
 from qiskit.utils import QuantumInstance
 
+from concurrent.futures import ThreadPoolExecutor
 
 from circuits import randomLayer, featureMap, quanvolutionESU2
 
@@ -169,7 +170,7 @@ class QuanvLayer(nn.Module):
     def __init__(
             self,
             in_channels=1,
-            out_channels=4,
+            out_channels=2,
             kernel_size=2,
             stride=1,
             shots=128,
@@ -197,6 +198,7 @@ class QuanvLayer(nn.Module):
         
         if in_channels != 1:
             raise Exception(f'Only support 1 input channel but got {in_channels}')
+            
 
         self.quantum_circuits = [
             QuanvCircuit(kernel_size=kernel_size, 
@@ -204,7 +206,11 @@ class QuanvLayer(nn.Module):
                          shots=shots, 
                          ansatz=quanvolutionESU2(  # parameterized ansatz
                             kernel_size**2,
+<<<<<<< HEAD
                             entanglement='circular', 
+=======
+                            entanglement='linear', 
+>>>>>>> c792bccf13b65e3014db1d50961efe169aab5363
                             gates=['rx','ry'], 
                             reps=2),
                          feature_map=featureMap(kernel_size**2))
@@ -216,8 +222,13 @@ class QuanvLayer(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
 
+<<<<<<< HEAD
         self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()), requires_grad=trainable)
         nn.init.uniform_(self.weights, -np.pi, np.pi)
+=======
+        self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()), requires_grad=False)
+        nn.init.uniform_(self.weights, -0.1, 0.1)
+>>>>>>> c792bccf13b65e3014db1d50961efe169aab5363
 
     def _get_parameter_shape(self):
         """Computes the number of trainable parameters required by the quantum circuit functions"""
@@ -298,19 +309,19 @@ class QuanvNet(nn.Module):
         x = F.relu(self.quanv(x))
         x = F.relu(self.conv(x))
         x = x.view(-1, self.fc_size)
-        x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
         return F.log_softmax(x, dim=1)
 
 class ClassicNet(nn.Module):
     """Overall model architecture that applies a classical version of our model"""
     def __init__(self, input_size=8):
-        super(QuanvNet, self).__init__()
+        super(ClassicNet, self).__init__()
 
         self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
         self.conv1 = nn.Conv2d(1, 4, kernel_size=2)
         self.conv2 = nn.Conv2d(4, 16, kernel_size=3)
-        # self.dropout = nn.Dropout2d()
+        self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 10)
 
@@ -321,7 +332,8 @@ class ClassicNet(nn.Module):
         # fully connectecd layers, go here
         x = F.relu(self.conv1(x))
         x = F.relu(self.conv2(x))
+        x = self.dropout(x)
         x = x.view(-1, self.fc_size)
-        x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
         return F.log_softmax(x, dim=1)
