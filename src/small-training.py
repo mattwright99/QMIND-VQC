@@ -68,7 +68,7 @@ class CustomQunvNet(nn.Module):
 #     def __init__(self, input_size=8, shots=128):
 #         super(CustomQunvNet, self).__init__()
 
-#         # self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
+#         # self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers # -kernel size + 1
 #         # # this ^ is 400
 #         self.fc_size = 6 * 6 * 16 # = 576
 #         # self.quanv = QuanvLayer(in_channels=1, out_channels=2, kernel_size=2, shots=shots)
@@ -104,9 +104,11 @@ class CustomQunvNet(nn.Module):
         # self.fc_size = (input_size - 3)**2 * 16 # = 400  # output size of convloving layers
         # # this ^ is 400
         # self.fc_size = 6 * 6 * 16 # = 576
-        self.fc_size = 4 * 4 * 32 # = 512
-        self.conv1 = nn.Conv2d(1, 16, kernel_size=3)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3)
+        kernel_size = 3
+        self.fc_size = (input_size - kernel_size - 1)**2 * 32 # = 512
+        # self.fc_size = (input_size-kernel_size-1)**2 * out_channels
+        self.conv1 = nn.Conv2d(1, 16, kernel_size=kernel_size)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=kernel_size)
         # self.dropout = nn.Dropout2d()
         self.fc1 = nn.Linear(self.fc_size, 64)
         self.fc2 = nn.Linear(64, 2)
