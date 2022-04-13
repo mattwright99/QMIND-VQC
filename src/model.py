@@ -16,7 +16,7 @@ from qiskit.utils import QuantumInstance
 
 from concurrent.futures import ThreadPoolExecutor
 
-from circuits import randomLayer, featureMap, quanvolutionESU2
+from circuits import randomLayer, featureMap, quanvolutionESU2, basicAnsatz
 
 
 class QuanvCircuit:
@@ -92,7 +92,7 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
 
-        input_data = 2*np.pi * input_data  # scale data from [0,1] to [0, pi]
+        input_data = 2* np.pi * input_data  # scale data from [0,1] to [0, pi]
 
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.input_vars, input_data)))
@@ -199,20 +199,16 @@ class QuanvLayer(nn.Module):
         if in_channels != 1:
             raise Exception(f'Only support 1 input channel but got {in_channels}')
             
-
+        """quanvolutionESU2(  # parameterized ansatz
+            kernel_size**2,
+            entanglement='circular', 
+            gates=['rx','ry'], 
+            reps=2),"""
         self.quantum_circuits = [
             QuanvCircuit(kernel_size=kernel_size, 
                          backend=backend, 
                          shots=shots, 
-                         ansatz=quanvolutionESU2(  # parameterized ansatz
-                            kernel_size**2,
-<<<<<<< HEAD
-                            entanglement='circular', 
-=======
-                            entanglement='linear', 
->>>>>>> c792bccf13b65e3014db1d50961efe169aab5363
-                            gates=['rx','ry'], 
-                            reps=2),
+                         ansatz=basicAnsatz(kernel_size**2, reps=2),
                          feature_map=featureMap(kernel_size**2))
             for c in range(out_channels)
         ]
@@ -222,13 +218,8 @@ class QuanvLayer(nn.Module):
         self.kernel_size = kernel_size
         self.stride = stride
 
-<<<<<<< HEAD
         self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()), requires_grad=trainable)
         nn.init.uniform_(self.weights, -np.pi, np.pi)
-=======
-        self.weights = nn.Parameter(torch.empty(self._get_parameter_shape()), requires_grad=False)
-        nn.init.uniform_(self.weights, -0.1, 0.1)
->>>>>>> c792bccf13b65e3014db1d50961efe169aab5363
 
     def _get_parameter_shape(self):
         """Computes the number of trainable parameters required by the quantum circuit functions"""

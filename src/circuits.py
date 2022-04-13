@@ -116,6 +116,18 @@ def IQP(n, insert_barrier=False):
     
     return IQP_Mat(paramMat, insert_barrier=insert_barrier), params
 
-#def threshold_feature_map(n_qubits, to_gate='False') -> Union[Gate, QuantumCircuit]:
-    
+def basicAnsatz(n, reps=2):
+    qc = QuantumCircuit(n)
+    qc.h(range(n))
+    num_params = 3*n*(reps + 1)
+    parameters = ParameterVector('theta', num_params)
+    for i in range(reps):
+        for j in range(n):
+            qc.rx(parameters[j], j)
+            qc.ry(parameters[j], j)
+            qc.rz(parameters[j], j)
+        qc.h(range(n))
+    return qc, parameters
+        
+        
         
