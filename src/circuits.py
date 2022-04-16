@@ -119,13 +119,14 @@ def IQP(n, insert_barrier=False):
 def basicAnsatz(n, reps=2):
     qc = QuantumCircuit(n)
     qc.h(range(n))
-    num_params = 3*n*(reps + 1)
+    num_params = 3*n*(reps)
     parameters = ParameterVector('theta', num_params)
     for i in range(reps):
         for j in range(n):
-            qc.rx(parameters[j], j)
-            qc.ry(parameters[j], j)
-            qc.rz(parameters[j], j)
+            idx = 3*(j + n*i)
+            qc.rx(parameters[idx], j)
+            qc.ry(parameters[idx + 1], j)
+            qc.rz(parameters[idx + 2], j)
         qc.h(range(n))
     return qc, parameters
         

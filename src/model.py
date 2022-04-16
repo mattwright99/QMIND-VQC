@@ -73,15 +73,18 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
         
+        input_data = np.array(input_data)
+        weights = np.array(weights)
+
         input_data = np.pi * input_data  # scale data from [0,1] to [0, pi]
         # Set measurement expectation
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
-        in_pauli_basis = PauliExpectation().convert(expectation)        
 
-        # Dind values to circuit and get expectation value
+        # Bind values to circuit and get expectation value
         value_dict = dict(zip(self.weight_vars, weights))
         value_dict.update(dict(zip(self.input_vars, input_data)))
-        result = self.sampler.convert(in_pauli_basis, params=value_dict).eval()
+        expectation = expectation.bind_parameters(value_dict)
+        result = expectation.eval()
         
         return np.real(np.array([result]))
 
@@ -92,17 +95,21 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
 
-        input_data = 2* np.pi * input_data  # scale data from [0,1] to [0, pi]
+        input_data = np.array(input_data)
+        weights = np.array(weights)
+
+        input_data = np.pi * input_data  # scale data from [0,1] to [0, pi]
 
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.input_vars, input_data)))
-        
+
         grad = self.shifter.convert(expectation)
-        gradient_in_pauli_basis = PauliExpectation().convert(grad)
+
         value_dict = dict(zip(self.weight_vars, weights))
+        grad = grad.bind_parameters(value_dict)
         
-        result = np.array(self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval())
-    
+        result = grad.eval()
+        
         return np.real(result)
 
     def grad_input(self, input_data, weights):
@@ -111,18 +118,21 @@ class QuanvCircuit:
         if isinstance(weights, torch.Tensor):
             weights = np.array(weights.tolist())
     
-        input_data = 2*np.pi * input_data  # scale data from [0,1] to [0, pi]
-                        
+        input_data = np.array(input_data)
+        weights = np.array(weights)
+
+        input_data = np.pi * input_data  # scale data from [0,1] to [0, pi]
+
         expectation = StateFn(self.hamiltonian, is_measurement=True) @ StateFn(self.qc)
         expectation = expectation.bind_parameters(dict(zip(self.weight_vars, weights)))
-                
+
         grad = self.shifter.convert(expectation)
-        gradient_in_pauli_basis = PauliExpectation().convert(grad)
         value_dict = dict(zip(self.input_vars, input_data))
-        
-        result = np.array(self.sampler.convert(gradient_in_pauli_basis, params=value_dict).eval())
-    
+        grad = grad.bind_parameters(value_dict)
+        result = grad.eval()
+
         return np.real(result)
+
 
 
 class QuanvFunction(Function):
@@ -199,16 +209,15 @@ class QuanvLayer(nn.Module):
         if in_channels != 1:
             raise Exception(f'Only support 1 input channel but got {in_channels}')
             
-        """quanvolutionESU2(  # parameterized ansatz
-            kernel_size**2,
-            entanglement='circular', 
-            gates=['rx','ry'], 
-            reps=2),"""
         self.quantum_circuits = [
             QuanvCircuit(kernel_size=kernel_size, 
                          backend=backend, 
                          shots=shots, 
-                         ansatz=basicAnsatz(kernel_size**2, reps=2),
+                         ansatz=quanvolutionESU2(  # parameterized ansatz
+                            kernel_size**2,
+                            entanglement='circular', 
+                            gates=['rx','ry'], 
+                            reps=3),
                          feature_map=featureMap(kernel_size**2))
             for c in range(out_channels)
         ]

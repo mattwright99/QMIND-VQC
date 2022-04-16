@@ -18,13 +18,13 @@ plt.rcParams['xtick.major.width'] = 1
 plt.rcParams['ytick.major.width'] = 1
 
 
-n_epochs = 4
+n_epochs = 5
 
 # Feel free to set these to increase or decrease the size of the training 
-im_size = 8  # side length used to scale loaded images
-n_train_samples = 8
+im_size = 16  # side length used to scale loaded images
+n_train_samples = 32
 n_test_samples = 16
-batch_size_train = 8
+batch_size_train = 2
 batch_size_test = 16
 
 learning_rate = 0.01
@@ -48,24 +48,26 @@ idx = np.append(np.where(X_train.targets == 0)[0][:n_train_samples],
 
 X_train.data = X_train.data[idx]
 X_train.targets = X_train.targets[idx]
+#X_train.data = X_train.data[:n_train_samples]
+#X_train.targets = X_train.targets[:n_train_samples]
 
 train_loader = torch.utils.data.DataLoader(X_train, batch_size=batch_size_train, shuffle=True)
 
-'''n_samples_show = 6
+"""n_samples_show = 6
 
 data_iter = iter(train_loader)
 fig, axes = plt.subplots(nrows=1, ncols=n_samples_show, figsize=(10, 3))
-images, targets = data_iter
+
 while n_samples_show > 0:
+    images, targets = data_iter.__next__()
 
-
-    axes[n_samples_show - 1].imshow(images[0][n_samples_show - 1].numpy().squeeze(), cmap='gray')
+    axes[n_samples_show - 1].imshow(images[0].numpy().squeeze(), cmap='gray')
     axes[n_samples_show - 1].set_xticks([])
     axes[n_samples_show - 1].set_yticks([])
-    axes[n_samples_show - 1].set_title("Labeled: {}".format(targets[1][n_samples_show - 1].item()))
+    axes[n_samples_show - 1].set_title("Labeled: {}".format(targets.item()))
     
     n_samples_show -= 1
-plt.show()'''
+plt.show()"""
 
 # Load testing data
 X_test = datasets.MNIST(
@@ -80,6 +82,8 @@ idx = np.append(np.where(X_test.targets == 0)[0][:n_test_samples],
 
 X_test.data = X_test.data[idx]
 X_test.targets = X_test.targets[idx]
+#X_test.data = X_test.data[:n_test_samples]
+#X_test.targets = X_test.targets[:n_test_samples]
 
 test_loader = torch.utils.data.DataLoader(X_test, batch_size=batch_size_test, shuffle=True)
 
@@ -90,7 +94,7 @@ class CustomQuanvNet(nn.Module):
         super(CustomQuanvNet, self).__init__()
 
         self.fc_size = (input_size - 3)**2 * 16  # output size of convloving layers
-        n_channels = 2
+        n_channels = 4
         self.quanv = QuanvLayer(in_channels=1, out_channels=n_channels, kernel_size=2, shots=shots, trainable=True)
         self.conv = nn.Conv2d(n_channels, 16, kernel_size=3)
         # self.dropout = nn.Dropout2d()
@@ -142,7 +146,7 @@ for epoch in range(n_epochs):
         
         # Compute loss and backprop
         loss = loss_func(output, target)
-        if torch.isnan(loss).any(): break
+        #if torch.isnan(loss).any(): break
         loss.backward()
         optimizer.step()
         
@@ -152,7 +156,8 @@ for epoch in range(n_epochs):
         acc = (pred == target).float().sum()/ len(target)
         epoch_train_acc.append(acc.item())
         # testing acc
-        test_pred = model(test_data).argmax(axis=1)
+        with torch.no_grad():
+            test_pred = model(test_data).argmax(axis=1)
         test_acc = (test_pred == test_target).float().sum()/ len(test_target)
         epoch_test_acc.append(test_acc.item())
         print(f'Batch {batch_idx} acc: {test_acc.item()}')
